@@ -298,6 +298,7 @@ SetPlotParam <-
 #' @param height Numeric, to define the height of the figure.
 #' @importFrom Cairo Cairo
 #' @importFrom ggrepel geom_text_repel
+#' @importFrom grid viewport
 #' @export
 #' @examples 
 #' library(OptiLCMS)
@@ -315,7 +316,9 @@ PlotXIC <-
            format,
            dpi,
            width,
-           height) {
+           height,
+           sample_filled,
+           group_filled) {
     # Parameters initialization
     if (missing(sample_labeled)) {
       sample_labeled <- FALSE
@@ -334,6 +337,14 @@ PlotXIC <-
     }
     if (missing(height)) {
       height <- width * 1.05
+    }
+    
+    if(missing(sample_filled)){
+      sample_filled <- FALSE;
+    }
+    
+    if(missing(group_filled)){
+      group_filled <- TRUE;
     }
     
     # Load data results
@@ -436,7 +447,21 @@ PlotXIC <-
       }
       
     }
-    
+    ## Get Group CV Table
+    CVTable <- PeakGroupCV(IntoLists, groupsInfo);
+    CVTable <- data.frame(x = CVTable$V1,y=CVTable$V2);
+    pCV <- ggplot(data=CVTable, aes(x=x, y=y, fill =x, alpha = 0.5))  + 
+      geom_col(width = 1.32/ncol(CVTable)) + 
+      theme_bw() + 
+      theme(text = element_text(size=10), 
+            axis.title.x = element_blank(),
+            axis.text.x=element_blank(), 
+            legend.position = "none",
+            panel.grid.major = element_blank(), 
+            panel.grid.minor = element_blank()) + 
+      labs(y = expression(italic("Coefficient of variation"))) + 
+      geom_hline(yintercept=1, linetype="dashed", color = "red");
+
     ## PLotting sample EIC begin -
     
     res0 <- lapply(
@@ -501,18 +526,34 @@ PlotXIC <-
       )
     }
     
-    s_image <-
-      ggplot(res, aes_string(x = "RT", y = "Intensity", color = "Samples")) + #geom_line() #+
-      stat_smooth(
-        geom = 'area',
-        method = "loess",
-        se = FALSE,
-        span = spanValue,
-        size = 0.35,
-        formula = "y ~ x",
-        alpha = 1 / 4,
-        aes_string(fill = "Samples")
-      ) +
+    if(sample_filled){
+      s_image0 <- ggplot(res, aes_string(x = "RT", y = "Intensity", color = "Samples")) +
+        stat_smooth(
+          geom = 'area',
+          method = "loess",
+          se = FALSE,
+          span = spanValue,
+          size = 0.35,
+          formula = "y ~ x",
+          alpha = 1 / 4,
+          aes_string(fill = "Samples")
+        )
+    } else {
+      s_image0 <- ggplot(res, aes_string(x = "RT", y = "Intensity", color = "Samples")) +
+        stat_smooth(
+          geom = 'area',
+          method = "loess",
+          se = FALSE,
+          span = spanValue,
+          size = 0.35,
+          formula = "y ~ x",
+          alpha = 1 / 4,
+          aes_string(color = "Samples"),
+          fill = NA
+        )
+    }
+    
+    s_image <-s_image0 +
       theme_bw() +
       ylim(0, NA) +
       xlim(min(res$RT) - peak_width * 0.05 , max(res$RT) + peak_width * 0.35) +
@@ -525,7 +566,9 @@ PlotXIC <-
         ),
         legend.title = element_text(size = 8.5),
         legend.text = element_text(size = 8),
-        legend.key.size = unit(3, "mm")
+        legend.key.size = unit(3, "mm"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()
       ) +
       ggtitle(title)
     
@@ -581,18 +624,34 @@ PlotXIC <-
       )
     }
     
-    g_image <-
-      ggplot(res_data, aes_string(x = "RT", y = "Intensity", color = "Groups")) + #geom_line() +
-      stat_smooth(
-        geom = 'area',
-        method = "loess",
-        se = FALSE,
-        span = spanValue,
-        size = 0.35,
-        formula = "y ~ x",
-        alpha = 1 / 4,
-        aes_string(fill = "Groups")
-      ) +
+    if(group_filled){
+      g_image0 <- ggplot(res_data, aes_string(x = "RT", y = "Intensity", color = "Groups")) + #geom_line() +
+        stat_smooth(
+          geom = 'area',
+          method = "loess",
+          se = FALSE,
+          span = spanValue,
+          size = 0.35,
+          formula = "y ~ x",
+          alpha = 1 / 4,
+          aes_string(fill = "Groups")
+        ) 
+    } else {
+      g_image0 <- ggplot(res_data, aes_string(x = "RT", y = "Intensity", color = "Groups")) + #geom_line() +
+        stat_smooth(
+          geom = 'area',
+          method = "loess",
+          se = FALSE,
+          span = spanValue,
+          size = 0.35,
+          formula = "y ~ x",
+          alpha = 1 / 4,
+          aes_string(color = "Groups"),
+          fill = NA
+        ) 
+    }
+    
+    g_image <- g_image0 +
       theme_bw() +
       ylim(0, NA) +
       xlim(min(res_data$RT) - peak_width * 0.75 ,
@@ -606,7 +665,9 @@ PlotXIC <-
         ),
         legend.title = element_text(size = 9),
         legend.text = element_text(size = 9),
-        legend.key.size = unit(4, "mm")
+        legend.key.size = unit(4, "mm"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()
       ) +
       ggtitle(title)
     
@@ -616,8 +677,8 @@ PlotXIC <-
                                   force = 1.5,
                                   show.legend = FALSE)
     }
-    
-    print(g_image);
+    require(grid);
+    print(g_image); print(pCV,vp=viewport(.255, .82, .24, 0.24));
     
     if (.on.public.web) {
       dev.off()
@@ -706,7 +767,7 @@ PlotSpectraInsensityStistics <-
     }
     
     #op <- 
-    par(mar = c(3.5, 10, 4, 1.5), xaxt = "s")
+      par(mar = c(3.5, 10, 4, 1.5), xaxt = "s")
     
     sampleNMs <- names(ints);
     len_nms <- nchar(sampleNMs);
@@ -768,6 +829,10 @@ PlotSpectraPCA <-
            dpi = 72,
            width = NA) {
     
+    if(missing(mSet) || is.null(mSet)){
+      load("mSet.rda")
+    }
+    
     if (.on.public.web) {
       Cairo::Cairo(
         file = imgName,
@@ -783,18 +848,32 @@ PlotSpectraPCA <-
     sample_idx <-
       mSet@rawOnDisk@phenoData@data[["sample_group"]];
     
-    feature_value <-
-      .feature_values(
-        pks = mSet@peakfilling$msFeatureData$chromPeaks,
-        fts = mSet@peakfilling$FeatureGroupTable,
-        method = "medret",
-        value = "into",
-        intensity = "into",
-        colnames = mSet@rawOnDisk@phenoData@data[["sample_name"]],
-        missing = NA
-      );
+    # feature_value <-
+    #   .feature_values(
+    #     pks = mSet@peakfilling$msFeatureData$chromPeaks,
+    #     fts = mSet@peakfilling$FeatureGroupTable,
+    #     method = "medret",
+    #     value = "into",
+    #     intensity = "into",
+    #     colnames = mSet@rawOnDisk@phenoData@data[["sample_name"]],
+    #     missing = NA
+    #   );
     
-    pca_feats <- log2(feature_value);
+    feature_value0 <- mSet@dataSet[-1,];
+    rownames(feature_value0) <- feature_value0[,1];
+    feature_value <- feature_value0[,-1];
+    feature_value[is.na(feature_value)] <- 0;
+    
+    int.mat <- as.matrix(feature_value)
+    rowNms <- rownames(int.mat);
+    colNms <- colnames(int.mat);
+    int.mat <- t(apply(int.mat, 1, function(x) .replace.by.lod(as.numeric(x))));
+    rownames(int.mat) <- rowNms;
+    colnames(int.mat) <- colNms; 
+    feature_value <- int.mat;
+    feature_value[feature_value==0] <- 1;
+    
+    pca_feats <- log10(feature_value);
     
     if (nrow(feature_value) < 2) {
       MessageOutput(
@@ -819,7 +898,7 @@ PlotSpectraPCA <-
     df1 <- df0[is.finite(rowSums(df0)),];
     df <- t(df1);
     
-    mSet_pca <- prcomp(df, center = TRUE, scale = TRUE);
+    mSet_pca <- prcomp(df, center = TRUE, scale = FALSE);
     sum.pca <- summary(mSet_pca);
     var.pca <-
       sum.pca$importance[2,]; # variance explained by each PCA
@@ -862,13 +941,16 @@ PlotSpectraPCA <-
       pca3d <- list();
       
       pca3d$loading$axis <- paste("Loading ", c(1:3), sep="");
-      coords <- data.frame(t(signif(mSet_pca$rotation[,1:3], 5)));
+      coords0 <- coords <- data.frame(t(signif(mSet_pca$rotation[,1:3], 5)));
       colnames(coords) <- NULL; 
       pca3d$loading$xyz <- coords;
       pca3d$loading$name <- rownames(mSet_pca$rotation);
       pca3d$loading$entrez <- paste0(round(mSet@peakfilling[["FeatureGroupTable"]]@listData$mzmed, 4), 
                                      "@", 
                                      round(mSet@peakfilling[["FeatureGroupTable"]]@listData$rtmed, 2));
+      save(coords0, file = "coords0_ori.rda")
+      dists <- GetDist3D(coords0);
+      pca3d$loading$cols <- GetRGBColorGradient(dists);
       
       pca3d$cls =  df$group;
       

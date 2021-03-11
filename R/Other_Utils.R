@@ -216,6 +216,84 @@ peakTableSUM <- function(peak_table) {
   }
 }
 
+PeakGroupCV <- function(IntoLists, groupsInfo){
+  allGroups <- names(groupsInfo)
+  if(is.null(allGroups)){
+    newGrIn <- list();
+    allGroups <- colnames(groupsInfo);
+    for(j in seq_along(allGroups)){
+      newGrIn[[j]] <- as.vector(groupsInfo[,j]);
+    }
+    names(newGrIn) <- allGroups;
+    groupsInfo <- newGrIn;
+  }
+  
+  groups <- names(IntoLists);
+  
+  statsdf <- data.frame();
+  count <- 0;
+  
+  for(i in allGroups){
+    if(i %in% groups){
+      count <- count +1;
+      
+      if(length(IntoLists[[i]]) == length(groupsInfo[[i]])){
+        cv<- sd(as.numeric(IntoLists[[i]]))/mean(as.numeric(IntoLists[[i]]));
+        statsdf[count, c(1,2)] <- c(i, round(cv, 2)) 
+      } else {
+        nmissing <- abs(length(IntoLists[[i]]) - length(groupsInfo[[i]]));
+        ints <- c(as.numeric(IntoLists[[i]]), rep(0, nmissing));
+        
+        cv<- sd(ints)/mean(ints);
+        statsdf[count, c(1,2)] <- c(i, round(cv, 2));
+      }
+    }
+  }
+  
+  statsdf$V2 <- as.numeric(statsdf$V2)
+  statsdf$V2[statsdf$V2 == 0] <- 0.05
+  
+  return(statsdf)
+}
+
+GetRGBColorGradient <- function(vals) {
+  library(RColorBrewer)
+  
+  #seed.cols <- brewer.pal(3, "YlOrRd")
+  #seed.cols <- brewer.pal(9, "Oranges")[c(2,5,7)]
+  seed.cols <- c("#FCF5DF", "#FFEDA0", "#F03B20")
+  cols <- colorRampPalette(seed.cols)(length(vals))
+  # set alpha for
+  my.alpha <-
+    signif(seq(
+      from = 0.3,
+      to = 0.8,
+      length.out = length(vals)
+    ), 2)
+  
+  rgb.cols <- my.col2rgba(cols, alpha = my.alpha)
+  
+  # now need make sure values and colors are matched using names
+  nms.orig <- names(vals)
+  names(rgb.cols) <- names(sort(vals))
+  ord.cols <- rgb.cols[nms.orig]
+  return(as.vector(ord.cols))
+  # note remove names
+}
+
+my.col2rgba <- function(cols, alpha) {
+  rgbcols <- col2rgb(cols)
+  rgbcols <- rbind(rgbcols, alpha)
+  return(as.vector(apply(rgbcols, 2, function(x) {
+    paste("rgba(", paste(x, collapse = ","), ")", sep = "")
+  })))
+}
+
+GetDist3D <-function(mat, target=c(0,0,0)){
+  dist.vec <- apply(mat, 2, function(x) dist(rbind(x, target)));
+  return(dist.vec);
+}
+
 #' @title Cache Update
 #' @param folderPath guest folder
 #' @description used only for web cache update
